@@ -1,0 +1,19 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+.bg-dots {
+    background-color: white;
+    opacity: 0.8;
+    background-image: radial-gradient(rgb(118, 118, 209) 1px, white 1px);
+    background-size: 15px 15px;
+}
+
+@layer components {
+    .input {
+        @apply bg-gray-100 outline-none p-1;
+    }
+    .focus-input {
+        @apply focus:ring-1 focus:ring-gray-500 focus:border-transparent;
+    }
+}

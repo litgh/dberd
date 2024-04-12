@@ -1,0 +1,36 @@
+{
+  "name": "dberd",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "lint": "eslint --fix src/**/*.{js,vue}"
+  },
+  "dependencies": {
+    "@headlessui/vue": "^1.7.19",
+    "hotkeys-js": "^3.13.7",
+    "lodash-es": "^4.17.21",
+    "lucide-vue-next": "^0.365.0",
+    "monaco-editor": "0.45.0",
+    "pinia": "^2.1.7",
+    "vue": "^3.4.21",
+    "vue-router": "^4.3.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.0.0",
+    "@types/node": "^20.12.5",
+    "@vitejs/plugin-vue": "^5.0.4",
+    "autoprefixer": "^10.4.19",
+    "eslint": "^9.0.0",
+    "eslint-plugin-vue": "^9.24.0",
+    "globals": "^15.0.0",
+    "jsdoc": "^4.0.2",
+    "postcss": "^8.4.38",
+    "prettier": "^3.2.5",
+    "tailwindcss": "^3.4.3",
+    "vite": "^5.2.0"
+  }
+}
