@@ -39,12 +39,12 @@
           >
             <span class="text-[10px] text-gray-600 mr-4">HEX:</span>
             <span class="flex items-center text-black text-[10px] font-bold"
-              ><span :style="{'color': validHex ? 'black': '#FF0032'}">#</span>
+              ><span :style="{ color: validHex ? 'black' : '#FF0032' }">#</span>
               <input
                 type="text"
                 spellcheck="false"
                 class="w-16 h-4 rounded-md outline-none pl-[1px]"
-                :style="{'color': validHex ? 'black': '#FF0032'}"
+                :style="{ color: validHex ? 'black' : '#FF0032' }"
                 v-model="customColor"
                 @input="customColorChange"
               />
@@ -69,14 +69,14 @@ import { colors, tableWidth } from "@/constants/constants";
 import { Palette as PaletteIcon, Check, X } from "lucide-vue-next";
 import { ref } from "vue";
 import { Table } from "@/types/types";
-import useTransform from "@/store/useTransform.js";
+import useTransform from "@/store/useTransform";
 
-const { transform } = useTransform();
 const props = defineProps({
   table: {
     type: Table,
   },
 });
+const { transform } = useTransform();
 
 const currentColor = ref("");
 const open = ref(false);

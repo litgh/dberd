@@ -1,15 +1,17 @@
 <script setup>
-import useTable from "@/store/useTable";
+import useDiagram from "@/store/useDiagram.js";
 import useTransform from "@/store/useTransform";
-import { ObjectType, tableWidth } from "@/constants/constants";
+import { ObjectType, ShowTableStyle, tableWidth } from "@/constants/constants";
 import Table from "@/components/workspace/Table.vue";
 import Relationship from "@/components/workspace/Relationship.vue";
 import { computed, ref, watch } from "vue";
 import { debounce } from "lodash-es";
-import hotkeys from "hotkeys-js";
-import { ZoomIn, ZoomOut, Maximize } from "lucide-vue-next";
+import { ZoomIn, ZoomOut, Maximize, Table2 } from "lucide-vue-next";
+import { storeToRefs } from "pinia";
 
-const { tables, addTable, relationships, addRelationship } = useTable();
+const diagramStore = useDiagram();
+const { currentDiagram } = storeToRefs(diagramStore);
+const { addRelationship } = useDiagram();
 const { transform } = useTransform();
 const cursor = ref("default");
 const stage = ref();
@@ -66,10 +68,6 @@ watch(cursor, (newVal) => {
   stage.value.style.cursor = newVal;
 });
 
-hotkeys("t", (e, h) => {
-  addTable();
-});
-
 function onStageMousedown(event) {
   stagePosition.value = {
     isMoving: true,
@@ -100,7 +98,7 @@ function onStageMouseMove(e) {
     case ObjectType.TABLE:
       dx = e.clientX / transform.zoom - dragEl.value.offsetX;
       dy = e.clientY / transform.zoom - dragEl.value.offsetY;
-      const table = tables.find((t) => t.id === dragEl.value.id);
+      const table = currentDiagram.value.tables.find((t) => t.id === dragEl.value.id);
       table.x = dx;
       table.y = dy;
       drawGuideLines(table);
@@ -125,7 +123,7 @@ function drawGuideLines(table) {
   guideLines.value.h = -1;
   const guideOffset = 5;
   const g = { v: -1, h: -1 };
-  for (let t of tables) {
+  for (let t of currentDiagram.value.tables) {
     if (t.id === table.id) {
       continue;
     }
@@ -133,11 +131,12 @@ function drawGuideLines(table) {
     const ll = Math.abs(table.x - t.x);
     const tt = Math.abs(table.y - t.y);
     const rl = Math.abs(table.x + tableWidth - t.x);
-    const bt = Math.abs(table.y + table.height - t.y);
+    const bt = Math.abs(table.y + table.getHeight(tableStyle.value) - t.y);
+    const bb = Math.abs(table.y + table.getHeight(tableStyle.value) - t.y - t.getHeight(tableStyle.value))
     const lr = Math.abs(table.x - t.x - tableWidth);
-    const tb = Math.abs(table.y - t.y - t.height);
+    const tb = Math.abs(table.y - t.y - t.getHeight(tableStyle.value));
     const xc = Math.abs(table.x + tableWidth / 2 - t.x - tableWidth / 2);
-    const yc = Math.abs(table.y + table.height / 2 - t.y - t.height / 2);
+    const yc = Math.abs(table.y + table.getHeight(tableStyle.value) / 2 - t.y - t.getHeight(tableStyle.value) / 2);
 
     if (ll <= guideOffset) {
       g.v = t.x;
@@ -157,13 +156,16 @@ function drawGuideLines(table) {
       table.y = t.y;
     } else if (bt <= guideOffset) {
       g.h = t.y;
-      table.y = t.y - table.height;
+      table.y = t.y - table.getHeight(tableStyle.value);
+    } else if (bb <= guideOffset) {
+      g.h = t.y + t.getHeight(tableStyle.value);
+      table.y = g.h - table.getHeight(tableStyle.value);
     } else if (tb <= guideOffset) {
-      g.h = t.y + t.height;
-      table.y = t.y + t.height;
+      g.h = t.y + t.getHeight(tableStyle.value);
+      table.y = g.h
     } else if (yc <= guideOffset) {
-      g.h = t.y + t.height / 2;
-      table.y = g.h - table.height / 2;
+      g.h = t.y + t.getHeight(tableStyle.value) / 2;
+      table.y = g.h - table.getHeight(tableStyle.value) / 2;
     }
   }
 
@@ -209,7 +211,7 @@ function onTableSelect(e, id, type) {
     return;
   }
   const { clientX, clientY } = e;
-  const table = tables.find((t) => t.id === id);
+  const table = currentDiagram.value.tables.find(t => t.id === id)
   dragEl.value = {
     el: type,
     id: id,
@@ -268,15 +270,21 @@ function zoomToFit() {
   const rect = canvas.value.getBoundingClientRect();
   const rectWidth = rect.width;
   const rectHeight = rect.height;
-  const minX = Math.min(...tables.map((t) => t.x)) - 50;
-  const minY = Math.min(...tables.map((t) => t.y)) - 50;
-  const maxX = Math.max(...tables.map((t) => t.x + tableWidth)) + 50;
-  const maxY = Math.max(...tables.map((t) => t.y + t.height)) + 50;
+  const minX = Math.min(...currentDiagram.value.tables.map((t) => t.x)) - 50;
+  const minY = Math.min(...currentDiagram.value.tables.map((t) => t.y)) - 50;
+  const maxX = Math.max(...currentDiagram.value.tables.map((t) => t.x + tableWidth)) + 50;
+  const maxY = Math.max(...currentDiagram.value.tables.map((t) => t.y + t.getHeight(tableStyle.value))) + 50;
   const width = maxX - minX;
   const height = maxY - minY;
   const zoomX = rectWidth / width;
   const zoomY = rectHeight / height;
   transform.zoom = Math.min(1, Math.min(zoomX, zoomY));
+}
+
+const tableStyle = ref(ShowTableStyle.ALL_FIELDS)
+const showTableStyle = ref(false);
+function selectTableStyle(style) {
+  tableStyle.value = style;
 }
 
 const debouncedCursor = debounce(() => {
@@ -339,14 +347,16 @@ function wheel(e) {
         }"
       >
         <Relationship
-          v-for="(r, i) in relationships"
+          v-for="(r, i) in currentDiagram.relationships"
           :key="r.id"
-          v-model="relationships[i]"
+          :tableStyle="tableStyle"
+          v-model="currentDiagram.relationships[i]"
         />
         <Table
-          v-for="(table, index) in tables"
+          v-for="(table, index) in currentDiagram.tables"
           :key="table.id"
-          v-model="tables[index]"
+          v-model="currentDiagram.tables[index]"
+          :tableStyle="tableStyle"
           @dragstart="onTableSelect"
           @fieldenter="onLinkingEnd"
           @connectstart="onLinkingStart"
@@ -374,30 +384,41 @@ function wheel(e) {
       </g>
     </svg>
     <div
-      class="flex flex-col justify-between space-y-2 absolute bottom-5 right-5 py-2 px-1 bg-white border rounded-md"
+      class="grid grid-cols-1 absolute bottom-5 right-5 px-1 py-1 bg-white border divide-y rounded-md"
     >
-      <ZoomIn
-        :size="22"
-        @click="zoom(false, 1.1)"
-        class="cursor-pointer"
-        alt="Zoom In"
-      />
-      <hr />
-      <ZoomOut
-        :size="22"
-        @click="zoom(true, 1.1)"
-        class="cursor-pointer"
-        alt="Zoom Out"
-      />
-      <hr />
-      <Maximize
-        :size="22"
-        @click="zoomToFit"
-        class="cursor-pointer"
-        alt="Zoom To Fit"
-      />
+      <div title="Zoom In" class="py-1">
+        <ZoomIn
+          :size="24"
+          @click="zoom(false, 1.1)"
+          class="cursor-pointer"
+        />
+      </div>
+      <div title="Zoom Out" class="py-1">
+        <ZoomOut
+          :size="24"
+          @click="zoom(true, 1.1)"
+          class="cursor-pointer"
+        />
+      </div>
+      <div title="Zoom To Fit" class="py-1">
+        <Maximize
+          :size="24"
+          @click="zoomToFit"
+          class="cursor-pointer"
+        />
+      </div>
+      <div title="Show" class="py-1">
+        <Table2
+          :size="24"
+          @click="showTableStyle = !showTableStyle"
+          class="cursor-pointer"
+        />
+      </div>
+    </div>
+    <div v-if="showTableStyle" class="absolute bottom-5 right-14 flex flex-col bg-white border rounded-md divide-y">
+      <div v-for="s in Object.values(ShowTableStyle)" :key="s" @click="selectTableStyle(s)"
+        :class="['flex items-center hover:bg-gray-100 py-1.5 px-4 cursor-pointer',
+        tableStyle === s ? 'bg-gray-100' : '']">{{ s }}</div>
     </div>
   </div>
 </template>
-
-<style scoped></style>

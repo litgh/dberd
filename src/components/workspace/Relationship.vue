@@ -1,7 +1,11 @@
 <script setup>
 import { ref } from "vue";
-import useTransform from "@/store/useTransform.js";
 
+defineProps({
+  tableStyle: {
+    type: String
+  }
+})
 /**
  * @type {ModelRef<import("@/types/types").Relationship | undefined, string>}
  */
@@ -13,7 +17,7 @@ const pathRef = ref();
   <g class="select-none group">
     <path
       ref="pathRef"
-      :d="model.calPath(1)"
+      :d="model.calPath(1, tableStyle)"
       stroke="gray"
       fill="none"
       class="group-hover:stroke-sky-700"

@@ -19,3 +19,9 @@ export const ObjectType = {
   RELATIONSHIP: 2,
   LINKING: 3,
 };
+
+export const ShowTableStyle = {
+  TABLE_NAME: 'Table Name',
+  KEYS_ONLY: 'Keys Only',
+  ALL_FIELDS: 'All Fields',
+}

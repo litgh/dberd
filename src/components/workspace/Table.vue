@@ -3,6 +3,7 @@ import {
   tableWidth,
   tableFieldHeight,
   ObjectType,
+  ShowTableStyle
 } from "@/constants/constants";
 import { KeySquare } from "lucide-vue-next";
 import { defineAsyncComponent } from "vue";
@@ -15,6 +16,11 @@ defineEmits([
   "fieldleave",
   "dblclick",
 ]);
+defineProps({
+  tableStyle: {
+    type: String,
+  }
+})
 
 const table = defineModel();
 </script>
@@ -25,22 +31,23 @@ const table = defineModel();
     :x="table.x"
     :y="table.y"
     :width="tableWidth"
-    :height="(table.height + 12)"
-    class="group cursor-move"
+    :height="table.getHeight(tableStyle)"
+    class="group cursor-move ring-2 rounded-md"
     @mousedown="$emit('dragstart', $event, table.id, ObjectType.TABLE)"
     @dblclick="$emit('dblclick', $event, table)"
   >
     <div class="w-full select-none bg-white">
       <div
-        class="group w-full flex justify-between items-center text-center px-2 border-1"
+        class="group w-full flex justify-between items-center text-center px-2"
         :style="{ height: tableFieldHeight + 'px', background: table.color }"
       >
         <span class="text-white">{{ table.name }}</span>
         <Palette :table="table"/>
       </div>
+      <template v-for="(field, index) in table.fields" :key="field.id">
       <div
-        v-for="(field, index) in table.fields"
-        class="hover:bg-gray-200 bg-gray-100 flex items-center px-2 justify-between"
+        v-if="tableStyle === ShowTableStyle.ALL_FIELDS || tableStyle === ShowTableStyle.KEYS_ONLY && field.pk"
+        class="hover:bg-gray-200 bg-gray-100 flex items-center px-2 justify-between border-t border-t-zinc-900"
         :key="field.id"
         :style="{ height: tableFieldHeight + 'px' }"
         @mouseenter="
@@ -74,6 +81,7 @@ const table = defineModel();
         </div>
         <div class="uppercase">{{ field.type }}</div>
       </div>
+      </template>
     </div>
   </foreignObject>
 </template>
