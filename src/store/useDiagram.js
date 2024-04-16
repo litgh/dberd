@@ -164,6 +164,30 @@ export default defineStore("diagram", () => {
     });
   }
 
+  function removeField(tableId, fieldId) {
+    const table = diagrams.value[0].tables.find(
+      (table) => table.id === tableId,
+    );
+    if (table) {
+      const index = table.fields.findIndex((field) => field.id === fieldId);
+      if (index >= 0) {
+        table.fields.splice(index, 1);
+      }
+    }
+    const rs = diagrams.value[0].relationships.filter((relationship) => {
+      return (
+        (relationship.fromTable.id === tableId && relationship.fromField === fieldId) ||
+        (relationship.toTable.id === tableId && relationship.toField === fieldId)
+      );
+    });
+    rs.forEach((r) => {
+      diagrams.value[0].relationships.splice(
+        diagrams.value[0].relationships.indexOf(r),
+        1,
+      );
+    });
+  }
+
   return {
     diagrams,
     newDiagram,
@@ -172,6 +196,7 @@ export default defineStore("diagram", () => {
     currentDiagram,
     addTable,
     addField,
+    removeField,
     removeTable,
     addRelationship,
   };

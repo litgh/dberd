@@ -33,6 +33,7 @@ import {
   ArrowUp01,
   Ban,
   Settings,
+  Trash2,
   Grip,
   PencilLine,
 } from "lucide-vue-next";
@@ -49,8 +50,14 @@ defineProps({
 
 const diagramStore = useDiagram();
 const { diagrams, currentDiagram } = storeToRefs(diagramStore);
-const { addTable, addField, newDiagram, selectDiagram, deleteDiagram } =
-  diagramStore;
+const {
+  addTable,
+  addField,
+  removeField,
+  newDiagram,
+  selectDiagram,
+  deleteDiagram,
+} = diagramStore;
 const diagramName = ref("");
 const editDiagramNameModal = ref(false);
 
@@ -136,8 +143,10 @@ function closeOthers(id) {
           diagramName = currentDiagram.name;
         "
       >
-        <Grip size="22" class="mr-1" />
-        {{ currentDiagram.name }}
+        <Grip size="20" class="mr-1" />
+        <span class="text-xl text-gray-600 hover:text-gray-800"
+          >Diagrams/{{ currentDiagram.name }}</span
+        >
         <PencilLine size="18" class="ml-2 hidden group-hover:block" />
       </div>
       <TabGroup>
@@ -274,22 +283,6 @@ function closeOthers(id) {
                       </div>
                     </div>
                     <div class="flex">
-                      <!--                      <span-->
-                      <!--                        class="rounded-sm bg-gray-100 w-8 h-8 flex items-center justify-center ml-1.5"-->
-                      <!--                        :class="field.pk ? 'bg-sky-400' : ''"-->
-                      <!--                        title="Primary Key"-->
-                      <!--                        @click="field.pk = !field.pk"-->
-                      <!--                      >-->
-                      <!--                        <KeySquare size="18" class="cursor-pointer" />-->
-                      <!--                      </span>-->
-                      <!--                      <span-->
-                      <!--                        class="rounded-sm bg-gray-100 w-8 h-8 flex items-center justify-center ml-1.5"-->
-                      <!--                        :class="field.increment ? 'bg-sky-400' : ''"-->
-                      <!--                        title="Auto Increment"-->
-                      <!--                        @click="field.increment = !field.increment"-->
-                      <!--                      >-->
-                      <!--                        <ArrowUp01 size="18" class="cursor-pointer" />-->
-                      <!--                      </span>-->
                       <span
                         class="rounded-sm bg-gray-100 w-8 h-8 flex items-center justify-center ml-1.5"
                         :class="field.notNull ? 'bg-sky-400' : ''"
@@ -302,6 +295,13 @@ function closeOthers(id) {
                         class="rounded-sm bg-gray-100 w-8 h-8 flex items-center justify-center ml-1.5"
                       >
                         <Settings size="18" class="cursor-pointer" />
+                      </span>
+                      <span
+                        v-if="table.fields.length > 1"
+                        @click="removeField(table.id, field.id)"
+                        class="rounded-sm bg-gray-100 w-8 h-8 flex items-center justify-center ml-1.5"
+                      >
+                        <Trash2 size="18" class="cursor-pointer" color="red" />
                       </span>
                     </div>
                   </div>
