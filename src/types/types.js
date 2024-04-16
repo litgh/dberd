@@ -17,7 +17,7 @@ export class Diagram {
 
   /**
    *
-   * @param {number} id
+   * @param {string} id
    * @param {string} name
    */
   constructor(id, name) {
@@ -43,7 +43,7 @@ export class Diagram {
 export class Table {
   /**
    *
-   * @param {number} id
+   * @param {string} id
    * @param {string} name
    * @param {number} x
    * @param {number} y
@@ -63,10 +63,10 @@ export class Table {
     this.color = color;
   }
 
-  static newTable(id) {
+  static newTable(id, name) {
     return new Table(
       id,
-      "table_" + id,
+      name,
       50,
       50,
       "",
@@ -77,7 +77,7 @@ export class Table {
   }
 
   getHeight(style) {
-    if (style === ShowTableStyle.ALL_FIELDS) {
+    if (style === ShowTableStyle.ALL_FIELDS || style === ShowTableStyle.COMMENT) {
       return (this.fields ? this.fields.length + 1 : 1) * tableFieldHeight;
     } else if (style === ShowTableStyle.TABLE_NAME) {
       return tableFieldHeight;
@@ -104,7 +104,7 @@ export class Table {
 export class Field {
   /**
    *
-   * @param {number} id
+   * @param {string} id
    * @param {string} name
    * @param {string} type
    * @param {string} defaultValue
@@ -130,7 +130,7 @@ export class Field {
 
   /**
    *
-   * @param {number} id
+   * @param {string} id
    * @param {string} name
    * @param {string} type
    * @returns {Field}
@@ -163,11 +163,11 @@ export class Relationship {
   /**
    *
    * @constructor
-   * @param {number} id
+   * @param {string} id
    * @param {Table} fromTable
-   * @param {number} fromField
+   * @param {string} fromField
    * @param {Table}toTable
-   * @param {number} toField
+   * @param {string} toField
    */
   constructor(id, fromTable, fromField, toTable, toField) {
     this.id = id;

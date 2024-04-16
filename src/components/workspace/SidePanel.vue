@@ -32,7 +32,9 @@ import {
   KeySquare,
   ArrowUp01,
   Ban,
+  Settings,
   Grip,
+  PencilLine,
 } from "lucide-vue-next";
 import { computed, defineComponent, h, ref, watch } from "vue";
 import { storeToRefs } from "pinia";
@@ -47,16 +49,16 @@ defineProps({
 
 const diagramStore = useDiagram();
 const { diagrams, currentDiagram } = storeToRefs(diagramStore);
-const { addTable, removeTable, addField, newDiagram, selectDiagram, deleteDiagram } =
+const { addTable, addField, newDiagram, selectDiagram, deleteDiagram } =
   diagramStore;
-const diagramName = ref('');
+const diagramName = ref("");
 const editDiagramNameModal = ref(false);
 
 const query = ref("");
 const filterTables = computed(() =>
   query.value === ""
-    ? currentDiagram.tables
-    : currentDiagram.tables.filter((table) => {
+    ? currentDiagram.value.tables
+    : currentDiagram.value.tables.filter((table) => {
         return table.name.toLowerCase().includes(query.value.toLowerCase());
       }),
 );
@@ -128,11 +130,15 @@ function closeOthers(id) {
       :style="{ width: width + 'px' }"
     >
       <div
-        class="flex p-1 cursor-text border-b"
-        @click="editDiagramNameModal = true; diagramName = currentDiagram.name"
+        class="flex p-1 cursor-text border-b items-center group"
+        @click="
+          editDiagramNameModal = true;
+          diagramName = currentDiagram.name;
+        "
       >
         <Grip size="22" class="mr-1" />
         {{ currentDiagram.name }}
+        <PencilLine size="18" class="ml-2 hidden group-hover:block" />
       </div>
       <TabGroup>
         <TabList class="flex space-x-1 rounded p-1 border-b">
@@ -187,7 +193,7 @@ function closeOthers(id) {
               </div>
             </div>
             <Disclosure
-              v-for="table in currentDiagram.tables"
+              v-for="table in filterTables"
               :key="table.id"
               v-slot="{ open, close }"
             >
@@ -228,60 +234,62 @@ function closeOthers(id) {
                     class="mt-2 flex justify-between"
                     v-for="field in table.fields"
                   >
-                    <input
-                      type="text"
-                      class="input h-8 focus-input w-1/3 flex-shrink-0 px-2"
-                      v-model="field.name"
-                    />
-                    <div
-                      class="input h-8 focus-input w-1/3 flex-shrink-0 pl-2 ml-1 relative"
-                    >
-                      <Listbox v-model="field.type">
-                        <ListboxButton class="relative w-full text-left">
-                          <span class="inline-block">{{ field.type }}</span>
-                          <span
-                            class="absolute inset-y-0 right-0 flex items-center h-6"
+                    <div class="flex flex-1">
+                      <input
+                        type="text"
+                        class="input h-8 focus-input w-1/2 flex-shrink-0 px-2"
+                        v-model="field.name"
+                      />
+                      <div
+                        class="input h-8 focus-input w-1/2 flex-shrink-0 pl-2 ml-1 relative"
+                      >
+                        <Listbox v-model="field.type">
+                          <ListboxButton class="relative w-full text-left">
+                            <span class="inline-block">{{ field.type }}</span>
+                            <span
+                              class="absolute inset-y-0 right-0 flex items-center h-6"
+                            >
+                              <ChevronDown aria-hidden="true" size="16" />
+                            </span>
+                          </ListboxButton>
+                          <ListboxOptions
+                            class="absolute z-10 left-0 mt-2 outline-none w-full max-h-60 overflow-auto bg-white rounded-md border"
                           >
-                            <ChevronDown aria-hidden="true" size="16" />
-                          </span>
-                        </ListboxButton>
-                        <ListboxOptions
-                          class="absolute z-10 left-0 mt-2 outline-none w-full max-h-60 overflow-auto bg-white rounded-md border"
-                        >
-                          <ListboxOption
-                            v-for="type in [
-                              'int',
-                              'varchar',
-                              'bigint',
-                              'date',
-                              'datetime',
-                            ]"
-                            :key="type"
-                            :value="type"
-                            class="py-1 px-4 hover:bg-gray-100 cursor-pointer"
-                          >
-                            {{ type }}
-                          </ListboxOption>
-                        </ListboxOptions>
-                      </Listbox>
+                            <ListboxOption
+                              v-for="type in [
+                                'int',
+                                'varchar',
+                                'bigint',
+                                'date',
+                                'datetime',
+                              ]"
+                              :key="type"
+                              :value="type"
+                              class="py-1 px-4 hover:bg-gray-100 cursor-pointer"
+                            >
+                              {{ type }}
+                            </ListboxOption>
+                          </ListboxOptions>
+                        </Listbox>
+                      </div>
                     </div>
                     <div class="flex">
-                      <span
-                        class="rounded-sm bg-gray-100 w-8 h-8 flex items-center justify-center ml-1.5"
-                        :class="field.pk ? 'bg-sky-400' : ''"
-                        title="Primary Key"
-                        @click="field.pk = !field.pk"
-                      >
-                        <KeySquare size="18" class="cursor-pointer" />
-                      </span>
-                      <span
-                        class="rounded-sm bg-gray-100 w-8 h-8 flex items-center justify-center ml-1.5"
-                        :class="field.increment ? 'bg-sky-400' : ''"
-                        title="Auto Increment"
-                        @click="field.increment = !field.increment"
-                      >
-                        <ArrowUp01 size="18" class="cursor-pointer" />
-                      </span>
+                      <!--                      <span-->
+                      <!--                        class="rounded-sm bg-gray-100 w-8 h-8 flex items-center justify-center ml-1.5"-->
+                      <!--                        :class="field.pk ? 'bg-sky-400' : ''"-->
+                      <!--                        title="Primary Key"-->
+                      <!--                        @click="field.pk = !field.pk"-->
+                      <!--                      >-->
+                      <!--                        <KeySquare size="18" class="cursor-pointer" />-->
+                      <!--                      </span>-->
+                      <!--                      <span-->
+                      <!--                        class="rounded-sm bg-gray-100 w-8 h-8 flex items-center justify-center ml-1.5"-->
+                      <!--                        :class="field.increment ? 'bg-sky-400' : ''"-->
+                      <!--                        title="Auto Increment"-->
+                      <!--                        @click="field.increment = !field.increment"-->
+                      <!--                      >-->
+                      <!--                        <ArrowUp01 size="18" class="cursor-pointer" />-->
+                      <!--                      </span>-->
                       <span
                         class="rounded-sm bg-gray-100 w-8 h-8 flex items-center justify-center ml-1.5"
                         :class="field.notNull ? 'bg-sky-400' : ''"
@@ -289,6 +297,11 @@ function closeOthers(id) {
                         @click="field.notNull = !field.notNull"
                       >
                         <Ban size="18" class="cursor-pointer" />
+                      </span>
+                      <span
+                        class="rounded-sm bg-gray-100 w-8 h-8 flex items-center justify-center ml-1.5"
+                      >
+                        <Settings size="18" class="cursor-pointer" />
                       </span>
                     </div>
                   </div>
@@ -421,5 +434,3 @@ function closeOthers(id) {
     </Dialog>
   </TransitionRoot>
 </template>
-
-<style scoped></style>

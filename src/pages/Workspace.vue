@@ -19,15 +19,14 @@ function handleResize(event) {
 
 <template>
   <div
-    class="flex h-full overflow-y-auto"
+    id="workspace"
+    class="flex h-full overflow-y-auto relative"
     @mouseup="resizing = false"
     @mouseleave="resizing = false"
     @mousemove="handleResize"
-    @keyup=""
   >
     <SidePanel :width="width" @resizeStart="resizing = true" />
     <Canvas />
   </div>
 </template>
 
-<style scoped></style>

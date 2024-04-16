@@ -24,4 +24,5 @@ export const ShowTableStyle = {
   TABLE_NAME: 'Table Name',
   KEYS_ONLY: 'Keys Only',
   ALL_FIELDS: 'All Fields',
+  COMMENT: 'Comment',
 }
