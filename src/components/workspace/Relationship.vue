@@ -1,30 +1,26 @@
 <script setup>
-import { ref } from "vue";
-
 defineProps({
   tableStyle: {
     type: String
   }
 })
+defineEmits(['click'])
 /**
  * @type {ModelRef<import("@/types/types").Relationship | undefined, string>}
  */
 const model = defineModel();
-const pathRef = ref();
 </script>
 
 <template>
-  <g class="select-none group">
     <path
-      ref="pathRef"
       :d="model.calPath(1, tableStyle)"
       stroke="gray"
       fill="none"
-      class="group-hover:stroke-sky-700"
+      class="hover:stroke-sky-700"
       stroke-width="2"
       cursor="pointer"
-    ></path>
-  </g>
+      @click="$emit('click', $event, model.id)"
+     />
 </template>
 
 <style scoped></style>

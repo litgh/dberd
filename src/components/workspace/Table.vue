@@ -5,8 +5,8 @@ import {
   ObjectType,
   ShowTableStyle,
 } from "@/constants/constants";
-import { KeySquare } from "lucide-vue-next";
 import { defineAsyncComponent } from "vue";
+import useSettings from "@/store/useSettings";
 
 const Palette = defineAsyncComponent(
   () => import("@/components/workspace/Palette.vue"),
@@ -17,14 +17,15 @@ defineEmits([
   "fieldenter",
   "fieldleave",
   "dblclick",
+  "edit",
 ]);
 defineProps({
   tableStyle: {
     type: String,
   },
 });
-
 const table = defineModel();
+const { settings } = useSettings();
 </script>
 
 <template>
@@ -34,7 +35,7 @@ const table = defineModel();
     :y="table.y"
     :width="tableWidth"
     :height="table.getHeight(tableStyle)"
-    class="group cursor-move rounded-md"
+    :class="['rounded-md', settings.lock ? '' : 'cursor-move']"
     @mousedown="$emit('dragstart', $event, table.id, ObjectType.TABLE)"
     @dblclick="$emit('dblclick', $event, table)"
   >
@@ -44,7 +45,15 @@ const table = defineModel();
         :style="{ height: tableFieldHeight + 'px', background: table.color }"
       >
         <span class="text-white">{{ table.name }}</span>
-        <Palette :table="table" />
+        <div class="flex items-center space-x-2" v-if="!settings.lock">
+          <Icon size="18" color="white">
+            <i-tabler-edit
+              @click="$emit('edit', $event, table)"
+              class="cursor-pointer hidden group-hover:block"
+            />
+          </Icon>
+          <Palette :table="table" />
+        </div>
       </div>
       <template v-for="(field, index) in table.fields" :key="field.id">
         <div
@@ -70,9 +79,16 @@ const table = defineModel();
           "
           @mouseleave="$emit('fieldleave', $event, -1, -1)"
         >
-          <div class="flex items-center">
+          <div class="flex items-center group">
             <button
-              class="w-2.5 h-2.5 rounded-full bg-blue-500 opacity-80 inline-block"
+              :class="[
+                'w-2.5 h-2.5 rounded-full opacity-80 inline-block',
+                field.pk
+                  ? 'bg-blue-500'
+                  : field.notNull
+                    ? 'bg-gray-800'
+                    : 'bg-gray-400',
+              ]"
               @mousedown="
                 field.name &&
                   $emit(
@@ -86,19 +102,33 @@ const table = defineModel();
                   )
               "
             ></button>
-            <span class="inline-block ml-1.5">{{
-              tableStyle === ShowTableStyle.COMMENT
-                ? field.comment || field.name
-                : field.name
-            }}</span>
-            <KeySquare
+            <Tooltip
+              position="top"
+              :content="
+                tableStyle === ShowTableStyle.COMMENT
+                  ? field.comment || field.name
+                  : field.name
+              "
+            >
+              <span
+                :class="[
+                  'inline-block ml-1.5 text-ellipsis max-w-[100px]',
+                ]"
+                >{{
+                  tableStyle === ShowTableStyle.COMMENT
+                    ? field.comment || field.name
+                    : field.name
+                }}</span
+              >
+            </Tooltip>
+            <i-lucide-key-square
               v-if="field.pk"
               size="15"
               color="#E4A62F"
               class="ml-1 inline-block"
             />
           </div>
-          <div class="uppercase">{{ field.type }}</div>
+          <div class="uppercase text-xs font-bold text-gray-700">{{ field.type }}</div>
         </div>
       </template>
     </div>

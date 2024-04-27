@@ -4,6 +4,7 @@ import {
   colors,
   ShowTableStyle,
 } from "@/constants/constants";
+import { v4 as uuid } from "uuid";
 
 export class Diagram {
   /**
@@ -77,7 +78,10 @@ export class Table {
   }
 
   getHeight(style) {
-    if (style === ShowTableStyle.ALL_FIELDS || style === ShowTableStyle.COMMENT) {
+    if (
+      style === ShowTableStyle.ALL_FIELDS ||
+      style === ShowTableStyle.COMMENT
+    ) {
       return (this.fields ? this.fields.length + 1 : 1) * tableFieldHeight;
     } else if (style === ShowTableStyle.TABLE_NAME) {
       return tableFieldHeight;
@@ -98,6 +102,45 @@ export class Table {
       json.indices.map((index) => Index.fromJSON(index)),
       json.color,
     );
+  }
+
+  toYaml() {
+    let yaml = "name: " + this.name + "\n";
+    yaml += "comment: " + (this.comment || "") + "\n"
+    yaml += "fields: \n";
+    this.fields.forEach((field) => {
+      yaml += "\t" + field.name + ": " + field.type;
+      if (field.pk) {
+        yaml += " pk";
+      }
+      if (field.increment) {
+        yaml += " auto";
+      }
+      if (field.notNull) {
+        yaml += " not null";
+      } else {
+        yaml += " null";
+      }
+      if (field.default) {
+        yaml += " default " + field.default;
+      }
+      if (field.comment) {
+        yaml += " #" + field.comment;
+      }
+      yaml += "\n";
+    });
+    if (this.indices && this.indices.length > 0) {
+      yaml += "index: \n";
+      this.indices.forEach((index) => {
+        yaml += "\t- name: " + (index.name || "") + "\n";
+        yaml += "\t  fields: " + (index.fields instanceof Array? index.fields.join(", ") : index.fields) + "\n"
+        yaml += "\t  unique: " + (index.unique ? "true" : "false") + "\n"
+        if (index.type) {
+          yaml += "\t  type: " + (index.type || "") + "\n"
+        }
+      });
+    }
+    return yaml.replaceAll('\t', '  ');
   }
 }
 
@@ -122,10 +165,13 @@ export class Field {
     this.notNull = notNull;
     this.increment = increment;
     this.comment = comment;
+    if (!id) {
+      this.id = uuid();
+    }
   }
 
   static newPk() {
-    return new Field(0, "id", "int", "", true, true, true, "");
+    return new Field("", "id", "int", "", true, true, true, "");
   }
 
   /**
@@ -154,8 +200,26 @@ export class Field {
 }
 
 export class Index {
+  /**
+   *
+   * @param {string} name
+   * @param {string[]} fields
+   * @param {boolean} unique
+   * @param {string} type
+   */
+  constructor(name, fields, unique, type) {
+    this.name = name;
+    this.fields = fields;
+    this.unique = unique;
+    this.type = type;
+  }
+
+  static newIndex(name, fields, unique, type) {
+    return new Index(name, fields, unique, type);
+  }
+
   static fromJSON(json) {
-    return new Index();
+    return new Index(json.name, json.fields, json.unique, json.type);
   }
 }
 
@@ -166,7 +230,7 @@ export class Relationship {
    * @param {string} id
    * @param {Table} fromTable
    * @param {string} fromField
-   * @param {Table}toTable
+   * @param {Table} toTable
    * @param {string} toField
    */
   constructor(id, fromTable, fromField, toTable, toField) {
@@ -175,7 +239,6 @@ export class Relationship {
     this.fromField = fromField;
     this.toTable = toTable;
     this.toField = toField;
-    this.name = fromTable.name + "_" + fromTable.fields[fromField].name + "_fk";
   }
 
   static fromJSON(json) {
@@ -191,16 +254,21 @@ export class Relationship {
   calY(table, fieldId, tableStyle) {
     switch (tableStyle) {
       case ShowTableStyle.KEYS_ONLY:
-        const fi = table.fields.findIndex(f => f.pk && f.id === fieldId)
+        const fi = table.fields.findIndex((f) => f.pk && f.id === fieldId);
         if (fi >= 0) {
           return table.y + (fi + 1) * tableFieldHeight + tableFieldHeight / 2;
         }
+        return table.y;
       case ShowTableStyle.TABLE_NAME:
         return table.y + tableFieldHeight / 2;
       case ShowTableStyle.ALL_FIELDS:
-        return table.y +
-          (table.fields.findIndex(f => f.id === fieldId) + 1) * tableFieldHeight +
-          tableFieldHeight / 2;
+      case ShowTableStyle.COMMENT:
+        return (
+          table.y +
+          (table.fields.findIndex((f) => f.id === fieldId) + 1) *
+            tableFieldHeight +
+          tableFieldHeight / 2
+        );
     }
     return table.y;
   }
@@ -208,10 +276,10 @@ export class Relationship {
   calPath(zoom = 1, tableStyle) {
     const width = tableWidth * zoom;
     let x1 = this.fromTable.x;
-    let y1 = this.calY(this.fromTable, this.fromField, tableStyle)
+    let y1 = this.calY(this.fromTable, this.fromField, tableStyle);
 
     let x2 = this.toTable.x;
-    let y2 = this.calY(this.toTable, this.toField, tableStyle)
+    let y2 = this.calY(this.toTable, this.toField, tableStyle);
 
     let radius = 10 * zoom;
     const midX = (x2 + x1 + width) / 2;

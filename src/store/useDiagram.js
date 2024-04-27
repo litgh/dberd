@@ -1,102 +1,171 @@
-import { Diagram, Field, Relationship, Table } from "@/types/types";
+import { Relationship, Table } from "@/types/types";
 import { defineStore } from "pinia";
-import { computed, ref, toRaw, watch } from "vue";
+import { ref, toRaw, watch } from "vue";
 import { v4 as uuid } from "uuid";
-import { ShowTableStyle, tableWidth } from "@/constants/constants";
+
+import db from "@/store/db";
+import { Action, ObjectType, ShowTableStyle, State, tableWidth } from "@/constants/constants";
 import useTransform from "@/store/useTransform";
+import useSetting from "@/store/useSettings";
+import useState from "@/store/useState";
+import useUndoRedo from "@/store/useUndoRedo";
 
-export default defineStore("diagram", () => {
+export default defineStore("diagrams", () => {
   const { transform } = useTransform();
+  const { state } = useState();
+  const { settings } = useSetting();
+  const { addHistory } = useUndoRedo();
+  const diagramId = ref();
+  const diagramName = ref("Untitled Diagram");
   /**
-   * @type {import("vue").Ref<Diagram[]>}
+   * @type {import("vue").Ref<Table[]>}
    */
-  const diagrams = ref([]);
-  const diagramsKey = "dberd::diagrams";
+  const tables = ref([]);
+  /**
+   * @type {import("vue").Ref<Relationship[]>}
+   */
+  const relationships = ref([]);
 
-  watch(
-    () => diagrams,
-    (newVal) => {
-      const v = toRaw(newVal.value);
-      localStorage.setItem(diagramsKey, JSON.stringify(v));
-    },
-    {
-      deep: true,
-    },
-  );
+  const diagram = () => {
+    return {
+      name: diagramName.value,
+      lastModified: new Date(),
+      tables: toRaw(tables.value),
+      relationships: relationships.value.map(r => {
+        return {
+          id: r.id,
+          fromTable: r.fromTable.id,
+          fromField: r.fromField,
+          toTable: r.toTable.id,
+          toField: r.toField
+        }
+      }),
+      zoom: transform.zoom,
+      position: toRaw(transform.position),
+    };
+  };
 
-  function newDiagram() {
-    let name = "Untitled Diagram";
-    let i = 1;
-    while (true) {
-      const d = diagrams.value.find((d) => d.name === name);
-      if (d) {
-        name = `Untitled Diagram(${i})`;
-        i++;
-      } else {
-        diagrams.value.unshift(new Diagram(uuid(), name));
-        break;
-      }
+  const load = (d) => {
+    if (d) {
+      diagramId.value = d.id;
+      diagramName.value = d.name;
+      tables.value = d.tables.map((t) => Table.fromJSON(t));
+      relationships.value = d.relationships.map((r) => {
+        const fromTable = tables.value.find((t) => t.id === r.fromTable);
+        const toTable = tables.value.find((t) => t.id === r.toTable);
+        return new Relationship(r.id, fromTable, r.fromField, toTable, r.toField);
+      });
+      transform.zoom = d.zoom;
+      transform.position = d.position;
     }
-  }
+    state.state = State.NONE;
+  };
 
-  function deleteDiagram(id) {
-    const index = diagrams.value.findIndex((d) => d.id === id);
-    if (index >= 0) {
-      diagrams.value.splice(index, 1);
+  const save = async () => {
+    if (diagramId.value) {
+      await db.diagrams
+        .update(diagramId.value, diagram())
+        .then(() => {
+          state.state = State.SAVED;
+          state.lastSaved = new Date();
+        });
+    } else {
+      console.log("add new diagram")
+      await db.diagrams
+        .add({
+          ...diagram(),
+          createdAt: new Date(),
+        })
+        .then(() => {
+          state.state = State.SAVED;
+          state.lastSaved = new Date();
+        });
     }
-  }
+  };
 
-  const localDiagrams = localStorage.getItem(diagramsKey);
-  if (localDiagrams) {
-    const diagramsArray = JSON.parse(localDiagrams);
-    if (diagramsArray.length) {
-      diagrams.value = diagramsArray.map((d) => Diagram.fromJSON(d));
-    }
-  }
+  const loadLatestDiagram = async () => {
+    state.state = State.LOADING;
+    await db.diagrams
+      .orderBy("lastModified")
+      .last()
+      .then(load)
+      .catch((e) => console.error(e));
+  };
 
-  if (diagrams.value.length === 0) {
-    newDiagram();
-  }
+  const loadDiagram = async (id) => {
+    await db.diagrams
+      .get(id)
+      .then(load)
+      .catch((e) => console.error(e));
+  };
 
-  const currentDiagram = computed(() => diagrams.value[0]);
-
-  function selectDiagram(id) {
-    const index = diagrams.value.findIndex((d) => d.id === id);
-    if (index >= 0) {
-      let element = diagrams.value.splice(index, 1)[0];
-      diagrams.value.unshift(element);
-    }
-  }
+  const diagrams = async () => db.diagrams.toArray()
 
   /**
    *
-   * @param {string} fromTable
-   * @param {string} fromField
-   * @param {string} toTable
-   * @param {string} toField
+   * @param {string} fromTable tableId
+   * @param {string} fromField fieldId
+   * @param {string} toTable tableId
+   * @param {string} toField fieldId
+   * @param {boolean} addUndo
    */
-  function addRelationship(fromTable, fromField, toTable, toField) {
-    const from = diagrams.value[0].tables.find(
-      (table) => table.id === fromTable,
-    );
-    const to = diagrams.value[0].tables.find((table) => table.id === toTable);
+  const addRelationship = (fromTable, fromField, toTable, toField, addUndo = true) => {
+    const from = tables.value.find((table) => table.id === fromTable);
+    const to = tables.value.find((table) => table.id === toTable);
     const relationship = new Relationship(uuid(), from, fromField, to, toField);
-    diagrams.value[0].relationships.push(relationship);
-  }
+
+    if (addUndo) {
+      addHistory({
+        action: Action.ADD,
+        element: ObjectType.RELATIONSHIP,
+        data: {
+          id: relationship.id,
+          fromTable: fromTable,
+          fromField: fromField,
+          toTable: toTable,
+          toField: toField,
+        },
+        message: `Created relationship`,
+      });
+    }
+    relationships.value.push(relationship);
+    state.state = State.MODIFIED;
+  };
+
+  const removeRelationship = (relationshipId, addUndo = true) => {
+    const r = relationships.value.find((relationship) => relationship.id === relationshipId);
+    if (r) {
+      relationships.value.splice(relationships.value.indexOf(r), 1);
+      if (addUndo) {
+        addHistory({
+          action: Action.DELETE,
+          element: ObjectType.RELATIONSHIP,
+          data: {
+            id: r.id,
+            fromTable: r.fromTable.id,
+            fromField: r.fromField,
+            toTable: r.toTable.id,
+            toField: r.toField,
+          },
+          message: `Deleted relationship`,
+        });
+      }
+      state.state = State.MODIFIED;
+    }
+  };
 
   /**
-   *
    * @param {Table} table
+   * @param {boolean} addUndo
    */
-  function addTable(table) {
+  const addTable = (table, addUndo = true) => {
     if (table) {
       table.id = uuid();
-      diagrams.value[0].tables.push(table);
     } else {
-      let i = diagrams.value[0].tables.length + 1;
+      let i = tables.value.length + 1;
       let name = "table_" + i;
       do {
-        const t = diagrams.value[0].tables.findIndex((t) => t.name === name);
+        const t = tables.value.findIndex((t) => t.name === name);
         if (t >= 0) {
           i++;
           name = "table_" + i;
@@ -104,100 +173,163 @@ export default defineStore("diagram", () => {
           break;
         }
       } while (true);
-      const table = Table.newTable(uuid(), name);
-      let overlap = diagrams.value[0].tables.find((t) => {
+      table = Table.newTable(uuid(), name);
+    }
+    let overlap = tables.value.find((t) => {
+      return (
+        Math.abs(t.x - table.x) <= tableWidth &&
+        Math.abs(t.y - table.y) <= t.getHeight(ShowTableStyle.ALL_FIELDS)
+      );
+    });
+    while (overlap) {
+      table.x += tableWidth + 20;
+      if (table.x + tableWidth >= transform.width) {
+        table.y += overlap.getHeight(ShowTableStyle.ALL_FIELDS) + 20;
+        table.x = 50;
+      }
+      overlap = tables.value.find((t) => {
         return (
           Math.abs(t.x - table.x) <= tableWidth &&
           Math.abs(t.y - table.y) <= t.getHeight(ShowTableStyle.ALL_FIELDS)
         );
       });
-      while (overlap) {
-        table.x += tableWidth + 20;
-        if (table.x + tableWidth >= transform.width) {
-          table.y += overlap.getHeight(ShowTableStyle.ALL_FIELDS) + 20;
-          table.x = 50;
+    }
+    tables.value.push(table);
+
+    if (addUndo) {
+      addHistory({
+        action: Action.ADD,
+        element: ObjectType.TABLE,
+        data: table.id,
+        message: `Created table ${table.name}`,
+      });
+    }
+    state.state = State.MODIFIED;
+  };
+
+  /**
+   *
+   * @param {string[]} tableIds
+   */
+  const duplicateTable = (tableIds) => {
+    if (tableIds.length) {
+      tables.value.forEach((t) => {
+        if (tableIds.includes(t.id)) {
+          const newTable = Table.fromJSON(t);
+          newTable.name = `${t.name}_copy`;
+          addTable(newTable)
         }
-        overlap = diagrams.value[0].tables.find((t) => {
-          return (
-            Math.abs(t.x - table.x) <= tableWidth &&
-            Math.abs(t.y - table.y) <= t.getHeight(ShowTableStyle.ALL_FIELDS)
-          );
-        });
-      }
-      diagrams.value[0].tables.push(table);
+      });
     }
   }
 
   /**
    * @param {string} tableId
+   * @param {boolean} addUndo
    */
-  function addField(tableId) {
-    const table = diagrams.value[0].tables.find(
-      (table) => table.id === tableId,
-    );
-    if (table) {
-      table.fields.push(Field.newField(uuid(), "", ""));
-    }
-  }
-
-  /**
-   * @param {string} tableId
-   */
-  function removeTable(tableId) {
-    const index = diagrams.value[0].tables.findIndex(
-      (table) => table.id === tableId,
-    );
+  const removeTable = (tableId, addUndo = true) => {
+    const index = tables.value.findIndex((table) => table.id === tableId);
     if (index >= 0) {
-      diagrams.value[0].tables.splice(index, 1);
-    }
-    const rs = diagrams.value[0].relationships.filter((relationship) => {
-      return (
-        relationship.fromTable.id === tableId ||
-        relationship.toTable.id === tableId
-      );
-    });
-    rs.forEach((r) => {
-      diagrams.value[0].relationships.splice(
-        diagrams.value[0].relationships.indexOf(r),
-        1,
-      );
-    });
-  }
-
-  function removeField(tableId, fieldId) {
-    const table = diagrams.value[0].tables.find(
-      (table) => table.id === tableId,
-    );
-    if (table) {
-      const index = table.fields.findIndex((field) => field.id === fieldId);
-      if (index >= 0) {
-        table.fields.splice(index, 1);
+      const t = tables.value.splice(index, 1)[0];
+      const rs = relationships.value.filter((relationship) => {
+        return (
+          relationship.fromTable.id === tableId ||
+          relationship.toTable.id === tableId
+        );
+      });
+      rs.forEach((r) => {
+        relationships.value.splice(relationships.value.indexOf(r), 1);
+      });
+      if (addUndo) {
+        addHistory({
+          action: Action.DELETE,
+          element: ObjectType.TABLE,
+          data: {
+            table: t,
+            relationships: rs,
+          },
+          message: `Deleted table ${t.name}`,
+        })
       }
     }
-    const rs = diagrams.value[0].relationships.filter((relationship) => {
-      return (
-        (relationship.fromTable.id === tableId && relationship.fromField === fieldId) ||
-        (relationship.toTable.id === tableId && relationship.toField === fieldId)
-      );
-    });
-    rs.forEach((r) => {
-      diagrams.value[0].relationships.splice(
-        diagrams.value[0].relationships.indexOf(r),
-        1,
-      );
-    });
-  }
+  };
+
+  // /**
+  //  * @param {string} tableId
+  //  * @param {boolean} addUndo
+  //  */
+  // const addField = (tableId, addUndo = true) => {
+  //   const table = tables.value.find((table) => table.id === tableId);
+  //   if (table) {
+  //     table.fields.push(Field.newField(uuid(), "", ""));
+  //   }
+  // };
+
+  // const removeField = (tableId, fieldId) => {
+  //   const table = tables.value.find((table) => table.id === tableId);
+  //   if (table) {
+  //     const index = table.fields.findIndex((field) => field.id === fieldId);
+  //     if (index >= 0) {
+  //       table.fields.splice(index, 1);
+  //     }
+  //   }
+  //   const rs = relationships.value.filter((relationship) => {
+  //     return (
+  //       (relationship.fromTable.id === tableId &&
+  //         relationship.fromField === fieldId) ||
+  //       (relationship.toTable.id === tableId &&
+  //         relationship.toField === fieldId)
+  //     );
+  //   });
+  //   rs.forEach((r) => {
+  //     relationships.value.splice(relationships.value.indexOf(r), 1);
+  //   });
+  // };
+
+  loadLatestDiagram().then();
+
+  watch(
+    () => state.state,
+    async (v) => {
+      if (v === State.MODIFIED && settings.autoSave) {
+        await save();
+        return;
+      } else if (v !== State.SAVING) {
+        return;
+      }
+      await save();
+    },
+  );
+
+  watch(
+    () => [tables.value.length, relationships.value.length, transform.zoom],
+    () => {
+      if (tables.value.length === 0 && relationships.value.length === 0) {
+        return;
+      }
+      if (settings.autoSave && state.state === State.NONE) {
+        state.state = State.SAVING;
+      }
+    },
+  );
+
+  watch(diagramName, () => {
+    state.state = State.MODIFIED;
+  })
+
 
   return {
+    diagramId,
+    diagramName,
+    tables,
+    relationships,
     diagrams,
-    newDiagram,
-    selectDiagram,
-    deleteDiagram,
-    currentDiagram,
+    loadDiagram,
     addTable,
-    addField,
-    removeField,
+    duplicateTable,
     removeTable,
     addRelationship,
+    removeRelationship,
+    save,
   };
 });

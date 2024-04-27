@@ -23,20 +23,6 @@ import {
   DialogTitle,
 } from "@headlessui/vue";
 import useDiagram from "@/store/useDiagram.js";
-import {
-  Search,
-  ChevronUp,
-  ChevronDown,
-  Plus,
-  CircleX,
-  KeySquare,
-  ArrowUp01,
-  Ban,
-  Settings,
-  Trash2,
-  Grip,
-  PencilLine,
-} from "lucide-vue-next";
 import { computed, defineComponent, h, ref, watch } from "vue";
 import { storeToRefs } from "pinia";
 
@@ -142,12 +128,12 @@ function closeOthers(id) {
           editDiagramNameModal = true;
           diagramName = currentDiagram.name;
         "
-      >
-        <Grip size="20" class="mr-1" />
+      i-lucide->
+        <i-lucide-grip class="mr-1" />
         <span class="text-xl text-gray-600 hover:text-gray-800"
           >Diagrams/{{ currentDiagram.name }}</span
         >
-        <PencilLine size="18" class="ml-2 hidden group-hover:block" />
+        <i-lucide-pencil-line class="ml-2 hidden group-hover:block" />
       </div>
       <TabGroup>
         <TabList class="flex space-x-1 rounded p-1 border-b">
@@ -167,13 +153,13 @@ function closeOthers(id) {
               <div
                 class="flex items-center flex-1 bg-gray-100 py-1 h-8 relative"
               >
-                <Search size="16" class="absolute left-2" />
+                <i-lucide-search class="absolute left-2" />
                 <Combobox v-model="query">
                   <ComboboxInput
                     class="flex w-full input focus-input pl-8"
                     @input="query = $event.target.value"
                   />
-                  <CircleX
+                  <i-lucide-circle-x
                     size="22"
                     v-if="query !== ''"
                     @click="query = ''"
@@ -197,7 +183,7 @@ function closeOthers(id) {
                 class="flex justify-items-center cursor-pointer space-x-1 items-center w-[130px] ml-2 px-2 border rounded-sm bg-gray-200"
                 @click="addTable(null)"
               >
-                <Plus />
+                <i-lucide-plus />
                 <span class="select-none">Add Table</span>
               </div>
             </div>
@@ -214,8 +200,8 @@ function closeOthers(id) {
                     class="text-ellipsis whitespace-nowrap overflow-hidden font-semibold"
                     >{{ table.name }}</span
                   >
-                  <ChevronUp v-if="open" />
-                  <ChevronDown v-if="!open" />
+                  <i-lucide-chevron-up v-if="open" />
+                  <i-lucide-chevron-down v-if="!open" />
                 </DisclosureButton>
               </div>
               <transition
@@ -258,7 +244,7 @@ function closeOthers(id) {
                             <span
                               class="absolute inset-y-0 right-0 flex items-center h-6"
                             >
-                              <ChevronDown aria-hidden="true" size="16" />
+                              <i-lucide-chevron-down aria-hidden="true" />
                             </span>
                           </ListboxButton>
                           <ListboxOptions
@@ -289,19 +275,19 @@ function closeOthers(id) {
                         title="Not Null"
                         @click="field.notNull = !field.notNull"
                       >
-                        <Ban size="18" class="cursor-pointer" />
+                        <Ban class="cursor-pointer" />
                       </span>
                       <span
                         class="rounded-sm bg-gray-100 w-8 h-8 flex items-center justify-center ml-1.5"
                       >
-                        <Settings size="18" class="cursor-pointer" />
+                        <i-lucide-settings class="cursor-pointer" />
                       </span>
                       <span
                         v-if="table.fields.length > 1"
                         @click="removeField(table.id, field.id)"
                         class="rounded-sm bg-gray-100 w-8 h-8 flex items-center justify-center ml-1.5"
                       >
-                        <Trash2 size="18" class="cursor-pointer" color="red" />
+                        <i-lucide-trash-2 class="cursor-pointer" color="red" />
                       </span>
                     </div>
                   </div>
@@ -309,7 +295,7 @@ function closeOthers(id) {
                     class="h-8 w-[120px] mt-1 flex justify-items-center cursor-pointer space-x-1 items-center px-2 border rounded-sm bg-gray-200"
                     @click="addField(table.id)"
                   >
-                    <Plus />
+                    <i-lucide-plus />
                     <span class="select-none">Add Field</span>
                   </div>
                 </DisclosurePanel>

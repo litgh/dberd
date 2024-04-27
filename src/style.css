@@ -16,4 +16,89 @@
     .focus-input {
         @apply focus:ring-1 focus:ring-gray-500 focus:border-transparent;
     }
+    .btn {
+        @apply px-2 py-1 rounded-md bg-blue-600 text-white hover:bg-blue-700;
+    }
+}
+
+.overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5); /* 半透明黑色遮罩 */
+    z-index: 100;
+}
+
+
+.ltr {
+    top: 0;
+    left: 0;
+    bottom: 0;
+    min-width: 400px;
+}
+.rtl {
+    top: 0;
+    right: 0;
+    bottom: 0;
+    min-width: 400px;
+}
+
+.ttb {
+    top: 0;
+    left: 0;
+    width: 100%;
+    min-height: 300px;
+}
+
+.btt {
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    min-height: 300px;
+}
+
+.fade-enter-active,
+.fade-leave-active {
+    transition: all 0.3s ease;
+}
+
+.fade-enter-from,
+.fade-enter-active,
+.fade-enter-to,
+.fade-leave-from,
+.fade-leave-active,
+.fade-leave-to {
+    overflow: hidden;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+    opacity: 0;
+}
+
+.fade-enter-to,
+.fade-leave-from {
+    opacity: 1;
+}
+
+.fade-enter-from .rtl,
+.fade-leave-to .rtl {
+    transform: translate(100%);
+}
+
+.fade-enter-from .ltr,
+.fade-leave-to .ltr {
+    transform: translate(-100%);
+}
+
+.fade-enter-from .ttb,
+.fade-leave-to .ttb {
+    transform: translateY(-100%);
+}
+
+.fade-enter-from .btt,
+.fade-leave-to .btt {
+    transform: translateY(100%);
 }

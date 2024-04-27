@@ -1,25 +1,43 @@
 <script setup>
 import useDiagram from "@/store/useDiagram";
 import useTransform from "@/store/useTransform";
-import { ObjectType, ShowTableStyle, tableWidth } from "@/constants/constants";
-import Table from "@/components/workspace/Table.vue";
-import Relationship from "@/components/workspace/Relationship.vue";
-import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import useSettings from "@/store/useSettings";
+import useState from "@/store/useState";
+import useUndoRedo from "@/store/useUndoRedo";
+import {
+  Action,
+  ObjectType,
+  ShowTableStyle,
+  State,
+  tableWidth,
+} from "@/constants/constants";
+
+import { computed, onMounted, onUnmounted, ref, toRaw, watch } from "vue";
 import { debounce } from "lodash-es";
-import { ZoomIn, ZoomOut, Maximize, Table2 } from "lucide-vue-next";
 import { storeToRefs } from "pinia";
 import hotkeys from "hotkeys-js";
 
+import Tooltip from "@/components/Tooltip.vue";
+import EditTable from "@/components/workspace/EditTable.vue";
+import Table from "@/components/workspace/Table.vue";
+import Relationship from "@/components/workspace/Relationship.vue";
+
 const diagramStore = useDiagram();
-const { currentDiagram } = storeToRefs(diagramStore);
-const { addRelationship, removeTable } = useDiagram();
+const { tables, relationships } = storeToRefs(diagramStore);
+const { addRelationship, addTable, removeTable, duplicateTable, removeRelationship } = diagramStore;
 const { transform } = useTransform();
+const { settings } = useSettings();
+const { state, selectedTable } = useState();
+const selectedRelationship = ref([]);
+const { addHistory, undo, redo } = useUndoRedo();
 const cursor = ref("default");
-const stage = ref();
-const canvas = ref();
+const stageRef = ref();
+const canvasRef = ref();
+const editTableRef = ref();
 const { innerWidth, innerHeight } = window;
 const stagePosition = ref({
-  isMoving: false,
+  isPanning: false,
+  hasMoved: false,
   x: 0,
   y: 0,
   dx: 0,
@@ -37,10 +55,6 @@ const dragElDefault = () => {
 };
 const dragEl = ref(dragElDefault());
 /**
- * @type {Ref<string[]>}
- */
-const selectedTable = ref([]);
-/**
  *
  * @type {Ref<UnwrapRef<{
  *   fromTable: number,
@@ -54,12 +68,12 @@ const selectedTable = ref([]);
  * }>>}
  */
 const linking = ref({
-  fromTable: -1,
-  fromField: -1,
+  fromTable: null,
+  fromField: null,
   startX: 0,
   startY: 0,
-  toTable: -1,
-  toField: -1,
+  toTable: null,
+  toField: null,
   endX: 0,
   endY: 0,
 });
@@ -70,7 +84,7 @@ const linkPath = computed(() => {
 });
 
 watch(cursor, (newVal) => {
-  stage.value.style.cursor = newVal;
+  stageRef.value.style.cursor = newVal;
 });
 const sizeObserver = new ResizeObserver((entries) => {
   const { width, height } = entries[0].contentRect;
@@ -78,17 +92,44 @@ const sizeObserver = new ResizeObserver((entries) => {
   transform.height = height;
 });
 onMounted(() => {
-  sizeObserver.observe(canvas.value);
-  hotkeys("del, backspace", (event, handler) => {
-    if (selectedTable.value.length > 0) {
-      if (confirm("Are you sure to delete this table?")) {
-        selectedTable.value.forEach(removeTable);
+  sizeObserver.observe(canvasRef.value);
+  hotkeys("del, backspace", () => {
+    if (selectedRelationship.value.length && !settings.lock) {
+      selectedRelationship.value.forEach((id) => removeRelationship(id));
+    }
+    if (selectedTable.length === 0 || settings.lock) {
+      return;
+    }
+    if (selectedTable.length === 1) {
+      const t = tables.value.find((t) => t.id === selectedTable[0]);
+      if (t && t.fields.length === 1) {
+        selectedTable.length = 0;
+        removeTable(t.id);
+        state.state = State.MODIFIED;
+        return;
       }
     }
+
+    if (confirm("Are you sure to delete this table?")) {
+      selectedTable.forEach((id) => removeTable(id));
+      selectedTable.length = 0;
+      state.state = State.MODIFIED;
+    }
   });
-  hotkeys("ctrl+a", (event, handler) => {
-    selectedTable.value = currentDiagram.value.tables.map((t) => t.id);
-  })
+  hotkeys("ctrl+a", () => {
+    selectedTable.length = 0;
+    selectedTable.push(...tables.value.map((t) => t.id));
+  });
+  hotkeys("t", () => addTable());
+  hotkeys("ctrl+d", () => duplicateTable(selectedTable));
+  hotkeys("cmd+z, alt+z", undo);
+  hotkeys("cmd+shift+z, alt+shift+z", redo);
+  hotkeys("alt+s, option+s", () => {
+    if (settings.autoSave) {
+      return;
+    }
+    state.state = State.SAVING;
+  });
 });
 onUnmounted(() => {
   sizeObserver.disconnect();
@@ -96,7 +137,7 @@ onUnmounted(() => {
 
 function onStageMousedown(event) {
   stagePosition.value = {
-    isMoving: true,
+    isPanning: true,
     x: transform.position.x,
     y: transform.position.y,
     dx: event.clientX,
@@ -106,10 +147,10 @@ function onStageMousedown(event) {
 }
 
 function onStageMouseMove(e) {
-  if (!stagePosition.value.isMoving) {
+  if (!stagePosition.value.isPanning) {
     return;
   }
-
+  stagePosition.value.hasMoved = true;
   let dx = 0;
   let dy = 0;
   switch (dragEl.value.el) {
@@ -124,20 +165,21 @@ function onStageMouseMove(e) {
     case ObjectType.TABLE:
       dx = e.clientX / transform.zoom - dragEl.value.offsetX;
       dy = e.clientY / transform.zoom - dragEl.value.offsetY;
-      const table = currentDiagram.value.tables.find(
-        (t) => t.id === dragEl.value.id,
-      );
+      const table = tables.value.find((t) => t.id === dragEl.value.id);
       table.x = dx;
       table.y = dy;
       drawGuideLines(table);
       break;
     case ObjectType.LINKING:
-      const rect = canvas.value.getBoundingClientRect();
+      const rect = canvasRef.value.getBoundingClientRect();
       linking.value.endX =
         (e.clientX - rect.left - transform.position.x) / transform.zoom;
       linking.value.endY =
         (e.clientY - rect.top - transform.position.y) / transform.zoom;
       // console.log("link: ", link.value.startX, link.value.startY, link.value.endX, link.value.endY);
+      break;
+    default:
+      stagePosition.value.hasMoved = false;
       break;
   }
 }
@@ -151,7 +193,7 @@ function drawGuideLines(table) {
   guideLines.value.h = -1;
   const guideOffset = 5;
   const g = { v: -1, h: -1 };
-  for (let t of currentDiagram.value.tables) {
+  for (let t of tables.value) {
     if (t.id === table.id) {
       continue;
     }
@@ -217,17 +259,7 @@ function drawGuideLines(table) {
 }
 
 function onStageMouseUp() {
-  stagePosition.value.isMoving = false;
-  cursor.value = "default";
-  dragEl.value = dragElDefault();
-  if (linking.value.fromTable !== -1 && linking.value.toTable !== -1) {
-    console.log(
-      "link: ",
-      linking.value.fromTable,
-      linking.value.fromField,
-      linking.value.toTable,
-      linking.value.toField,
-    );
+  if (linking.value.fromTable && linking.value.toTable) {
     addRelationship(
       linking.value.fromTable,
       linking.value.fromField,
@@ -235,12 +267,33 @@ function onStageMouseUp() {
       linking.value.toField,
     );
   }
+  if (stagePosition.value.hasMoved) {
+    state.state = State.MODIFIED;
+    if (dragEl.value.el === ObjectType.TABLE) {
+      const table = tables.value.find((t) => t.id === dragEl.value.id);
+      addHistory({
+        action: Action.MOVE,
+        element: dragEl.value.el,
+        data: {
+          id: dragEl.value.id,
+          x: dragEl.value.prevX,
+          y: dragEl.value.prevY,
+        },
+        message: `Move ${table.name} to (${table.x}, ${table.y})`,
+      });
+    }
+  }
+
+  stagePosition.value.isPanning = false;
+  stagePosition.value.hasMoved = false;
+  cursor.value = "default";
+  dragEl.value = dragElDefault();
   guideLines.value.v = -1;
   guideLines.value.h = -1;
-  linking.value.fromTable = -1;
-  linking.value.fromField = -1;
-  linking.value.toTable = -1;
-  linking.value.toField = -1;
+  linking.value.fromTable = null;
+  linking.value.fromField = null;
+  linking.value.toTable = null;
+  linking.value.toField = null;
   linking.value.startX = 0;
   linking.value.startY = 0;
   linking.value.endX = 0;
@@ -253,22 +306,33 @@ function onStageMouseUp() {
  * @param {string} id
  */
 function onTableSelect(e, id) {
-  e.preventDefault();
-  e.stopPropagation();
+  // e.preventDefault();
+  // e.stopPropagation();
+  selectedRelationship.value.length = 0;
   if (e.altKey || e.metaKey) {
-    selectedTable.value.push(id);
+    selectedTable.push(id);
   } else {
-    selectedTable.value = [id];
+    selectedTable.length = 0;
+    selectedTable.push(id);
   }
-  console.log(selectedTable.value)
+}
+
+function onRelationshipSelect(e, id) {
+  selectedTable.length = 0;
+  if (e.altKey || e.metaKey) {
+    selectedRelationship.value.push(id)
+  } else {
+    selectedRelationship.value.length = 0;
+    selectedRelationship.value.push(id)
+  }
 }
 
 function onTableDragStart(e, id, type) {
-  if (linking.value.fromTable !== -1) {
+  if (linking.value.fromTable || settings.lock) {
     return;
   }
   const { clientX, clientY } = e;
-  const table = currentDiagram.value.tables.find((t) => t.id === id);
+  const table = tables.value.find((t) => t.id === id);
   dragEl.value = {
     el: type,
     id: id,
@@ -277,6 +341,10 @@ function onTableDragStart(e, id, type) {
     prevX: table.x,
     prevY: table.y,
   };
+}
+
+function onTableEdit(e, table) {
+  editTableRef.value.edit(table);
 }
 
 function onLinkingStart(e, tableId, fieldId, x, y) {
@@ -321,27 +389,25 @@ function zoom(zoomOut, scale) {
     }
     transform.zoom = Math.floor(transform.zoom * 100 * scale) / 100;
   }
+  state.state = State.MODIFIED;
 }
 
 function zoomToFit() {
-  const rect = canvas.value.getBoundingClientRect();
+  const rect = canvasRef.value.getBoundingClientRect();
   const rectWidth = rect.width;
   const rectHeight = rect.height;
-  const minX = Math.min(...currentDiagram.value.tables.map((t) => t.x)) - 50;
-  const minY = Math.min(...currentDiagram.value.tables.map((t) => t.y)) - 50;
-  const maxX =
-    Math.max(...currentDiagram.value.tables.map((t) => t.x + tableWidth)) + 50;
+  const minX = Math.min(...tables.value.map((t) => t.x)) - 50;
+  const minY = Math.min(...tables.value.map((t) => t.y)) - 50;
+  const maxX = Math.max(...tables.value.map((t) => t.x + tableWidth)) + 50;
   const maxY =
-    Math.max(
-      ...currentDiagram.value.tables.map(
-        (t) => t.y + t.getHeight(tableStyle.value),
-      ),
-    ) + 50;
+    Math.max(...tables.value.map((t) => t.y + t.getHeight(tableStyle.value))) +
+    50;
   const width = maxX - minX;
   const height = maxY - minY;
   const zoomX = rectWidth / width;
   const zoomY = rectHeight / height;
   transform.zoom = Math.min(1, Math.min(zoomX, zoomY));
+  state.state = State.MODIFIED;
 }
 
 const tableStyle = ref(ShowTableStyle.ALL_FIELDS);
@@ -366,12 +432,12 @@ function wheel(e) {
 <template>
   <div
     class="w-full h-full relative flex-grow bg-dots"
-    ref="canvas"
+    ref="canvasRef"
     id="canvas"
     @wheel="wheel"
   >
     <svg
-      ref="stage"
+      ref="stageRef"
       class="w-full h-full"
       @mousedown="onStageMousedown"
       @mouseup="onStageMouseUp"
@@ -410,29 +476,34 @@ function wheel(e) {
           transformOrigin: 'top left',
         }"
       >
-        <Relationship
-          v-for="(r, i) in currentDiagram.relationships"
-          :key="r.id"
-          :tableStyle="tableStyle"
-          v-model="currentDiagram.relationships[i]"
-        />
+        <g class="select-none">
+          <Relationship
+            v-for="(r, i) in relationships"
+            :key="r.id"
+            :tableStyle="tableStyle"
+            v-model="relationships[i]"
+            @click="onRelationshipSelect"
+            :class="selectedRelationship.includes(r.id) ? 'stroke-sky-700 stroke-[3px]' : ''"
+          />
+        </g>
         <Table
-          v-for="(table, index) in currentDiagram.tables"
+          v-for="(table, index) in tables"
           :key="table.id"
-          v-model="currentDiagram.tables[index]"
+          v-model="tables[index]"
           :tableStyle="tableStyle"
           @dragstart="onTableDragStart"
           @fieldenter="onLinkingEnd"
           @connectstart="onLinkingStart"
           @click.stop="onTableSelect($event, table.id)"
+          @edit="onTableEdit"
           :class="[
-            selectedTable.indexOf(table.id) !== -1
+            selectedTable.includes(table.id)
               ? 'ring-2 ring-offset-2 ring-blue-500'
               : 'ring-1 ring-neutral-800',
           ]"
         />
         <path
-          v-if="linking.fromTable !== -1"
+          v-if="linking.fromTable"
           :d="linkPath"
           stroke="red"
           stroke-dasharray="8,8"
@@ -454,24 +525,35 @@ function wheel(e) {
       </g>
     </svg>
     <div
+      id="tool"
       class="grid grid-cols-1 absolute bottom-5 right-5 px-1 py-1 bg-white border divide-y rounded-md"
     >
-      <div title="Zoom In" class="py-1">
-        <ZoomIn :size="24" @click="zoom(false, 1.1)" class="cursor-pointer" />
-      </div>
-      <div title="Zoom Out" class="py-1">
-        <ZoomOut :size="24" @click="zoom(true, 1.1)" class="cursor-pointer" />
-      </div>
-      <div title="Zoom To Fit" class="py-1">
-        <Maximize :size="24" @click="zoomToFit" class="cursor-pointer" />
-      </div>
-      <div title="Show" class="py-1">
-        <Table2
-          :size="24"
-          @click="showTableStyle = !showTableStyle"
-          class="cursor-pointer"
-        />
-      </div>
+      <Tooltip content="Zoom In" position="left" class="group py-1">
+        <Icon size="20">
+          <i-lucide-zoom-in @click="zoom(false, 1.1)" class="cursor-pointer" />
+        </Icon>
+      </Tooltip>
+      <Tooltip content="Zoom Out" position="left" class="group py-1">
+        <Icon size="20">
+          <i-lucide-zoom-out @click="zoom(true, 1.1)" class="cursor-pointer" />
+        </Icon>
+      </Tooltip>
+      <Tooltip content="Zoom To Fit" position="left" class="group py-1">
+        <Icon size="20">
+          <i-material-symbols-fit-screen-outline
+            @click="zoomToFit"
+            class="cursor-pointer"
+          />
+        </Icon>
+      </Tooltip>
+      <Tooltip content="Show" position="left" class="group py-1">
+        <Icon size="20">
+          <i-tabler-scan-eye
+            @click="showTableStyle = !showTableStyle"
+            class="cursor-pointer"
+          />
+        </Icon>
+      </Tooltip>
     </div>
     <div
       v-if="showTableStyle"
@@ -490,4 +572,5 @@ function wheel(e) {
       </div>
     </div>
   </div>
+  <EditTable ref="editTableRef" />
 </template>
