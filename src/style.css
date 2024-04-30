@@ -17,7 +17,13 @@
         @apply focus:ring-1 focus:ring-gray-500 focus:border-transparent;
     }
     .btn {
-        @apply px-2 py-1 rounded-md bg-blue-600 text-white hover:bg-blue-700;
+        @apply px-2 py-1 rounded-md cursor-pointer bg-gray-100;
+    }
+    .btn-primary {
+        @apply bg-blue-600 text-white hover:bg-blue-700;
+    }
+    .btn[disabled] {
+        @apply bg-gray-300 text-gray-500 cursor-not-allowed;
     }
 }
 

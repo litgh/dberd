@@ -1,4 +1,5 @@
 <script setup>
+import calcPath from "@/utils/calcPath";
 defineProps({
   tableStyle: {
     type: String
@@ -13,7 +14,7 @@ const model = defineModel();
 
 <template>
     <path
-      :d="model.calPath(1, tableStyle)"
+      :d="calcPath(model, 1, tableStyle)"
       stroke="gray"
       fill="none"
       class="hover:stroke-sky-700"

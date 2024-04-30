@@ -1,7 +1,7 @@
 <template>
   <Icon size="18" color="white">
     <i-tabler-palette
-      class="cursor-pointer hidden group-hover:block"
+      class="cursor-pointer hidden group-hover/table:block"
       @click="toggle"
     />
   </Icon>
@@ -70,7 +70,7 @@ import useTransform from "@/store/useTransform";
 
 const props = defineProps({
   table: {
-    type: Table,
+    type: Object,
   },
 });
 const { transform } = useTransform();

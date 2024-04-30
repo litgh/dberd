@@ -1,6 +1,5 @@
 <script setup>
 import Canvas from "@/components/workspace/Canvas.vue";
-import SidePanel from "@/components/workspace/SidePanel.vue";
 import Toolbar from "@/components/workspace/Toolbar.vue";
 import { ref } from "vue";
 

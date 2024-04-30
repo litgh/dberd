@@ -14,7 +14,7 @@ export default defineStore("diagrams", () => {
   const { transform } = useTransform();
   const { state } = useState();
   const { settings } = useSetting();
-  const { addHistory } = useUndoRedo();
+  const { addHistory, redoStack, undoStack } = useUndoRedo();
   const diagramId = ref();
   const diagramName = ref("Untitled Diagram");
   /**
@@ -76,7 +76,8 @@ export default defineStore("diagrams", () => {
           ...diagram(),
           createdAt: new Date(),
         })
-        .then(() => {
+        .then((id) => {
+          diagramId.value = id;
           state.state = State.SAVED;
           state.lastSaved = new Date();
         });
@@ -93,11 +94,42 @@ export default defineStore("diagrams", () => {
   };
 
   const loadDiagram = async (id) => {
+    state.state = State.LOADING;
     await db.diagrams
       .get(id)
       .then(load)
       .catch((e) => console.error(e));
   };
+
+  const deleteDiagram = async (id) => {
+    await db.diagrams.delete(id)
+      .then(() => {
+        diagramId.value = 0;
+        diagramName.value = "Untitled Diagram";
+        tables.value = [];
+        relationships.value = [];
+        redoStack.length = 0;
+        undoStack.length = 0;
+      })
+  }
+
+  const newDiagram = async () => {
+    state.state = State.LOADING;
+    diagramId.value = 0;
+    diagramName.value = "Untitled Diagram";
+    tables.value = [];
+    relationships.value = [];
+    redoStack.length = 0;
+    undoStack.length = 0;
+    await save();
+  }
+
+  const duplicateDiagram = async () => {
+    state.state = State.LOADING;
+    diagramId.value = 0;
+    diagramName.value = "Untitled Diagram (Copy)";
+    await save();
+  }
 
   const diagrams = async () => db.diagrams.toArray()
 
@@ -292,12 +324,9 @@ export default defineStore("diagrams", () => {
     () => state.state,
     async (v) => {
       if (v === State.MODIFIED && settings.autoSave) {
+        state.state = State.SAVING;
         await save();
-        return;
-      } else if (v !== State.SAVING) {
-        return;
       }
-      await save();
     },
   );
 
@@ -307,14 +336,16 @@ export default defineStore("diagrams", () => {
       if (tables.value.length === 0 && relationships.value.length === 0) {
         return;
       }
-      if (settings.autoSave && state.state === State.NONE) {
-        state.state = State.SAVING;
+      if (settings.autoSave && state.state !== State.SAVING) {
+        state.state = State.MODIFIED;
       }
     },
   );
 
   watch(diagramName, () => {
-    state.state = State.MODIFIED;
+    if (state.state === State.NONE || state.state === State.SAVED) {
+      state.state = State.MODIFIED;
+    }
   })
 
 
@@ -324,7 +355,10 @@ export default defineStore("diagrams", () => {
     tables,
     relationships,
     diagrams,
+    newDiagram,
+    duplicateDiagram,
     loadDiagram,
+    deleteDiagram,
     addTable,
     duplicateTable,
     removeTable,

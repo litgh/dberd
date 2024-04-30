@@ -15,10 +15,10 @@
               <div ref="editorContainer" class="flex flex-1"></div>
             </div>
             <div class="flex justify-center space-x-2 mt-2">
-              <button class="rounded-sm bg-blue-200 px-2 py-1" @click="save">
+              <button class="btn btn-primary" @click="save">
                 Save
               </button>
-              <button class="rounded-sm bg-gray-100 px-2 py-1" @click="close">
+              <button class="btn" @click="close">
                 Cancel
               </button>
             </div>
@@ -114,7 +114,10 @@ let monaco;
 let schemaSuggestion;
 let indexSuggestion;
 onMounted(async () => {
-  monaco = await loader.init();
+  if (!window.monaco) {
+    window.monaco = await loader.init();
+  }
+  monaco = window.monaco;
   indexSuggestion = [
     {
       label: "name",
@@ -185,19 +188,7 @@ onMounted(async () => {
         monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
     },
   ];
-});
 
-function suggestItem(s) {
-  return {
-    label: s.label,
-    insertText: s.insertText,
-    detail: s.detail,
-    kind: s.kind,
-    insertTextRules: s.insertTextRules,
-  };
-}
-
-async function onLoad() {
   monaco.languages.registerCompletionItemProvider("yaml", {
     provideCompletionItems(model, position, context, token) {
       try {
@@ -317,7 +308,19 @@ async function onLoad() {
       };
     },
   });
+});
 
+function suggestItem(s) {
+  return {
+    label: s.label,
+    insertText: s.insertText,
+    detail: s.detail,
+    kind: s.kind,
+    insertTextRules: s.insertTextRules,
+  };
+}
+
+async function onLoad() {
   const editor = monaco.editor.create(editorContainer.value, {
     value: table.value.toYaml(),
     language: "yaml",
@@ -474,18 +477,4 @@ defineExpose({
 </script>
 
 <style scoped>
-.fade-enter-active,
-.fade-leave-active {
-  transition: all 0.3s ease;
-}
-
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
-}
-
-.fade-enter-to,
-.fade-leave-from {
-  opacity: 1;
-}
 </style>

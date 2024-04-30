@@ -2,9 +2,7 @@
   <div
     class="w-full h-12 flex justify-start space-x-4 items-center p-2 border-b shadow-lg"
   >
-    <div class="font-bold text-2xl italic gradient-text animation-hover">
-      Dberd
-    </div>
+    <router-link to="/"><Logo /></router-link>
     <div class="flex items-center space-x-1 relative w-52">
       <Tooltip content="Click to edit" position="bottom" class="group">
         <input
@@ -13,26 +11,26 @@
           v-model="diagramName"
         />
       </Tooltip>
-      <i-lucide-chevrons-up-down class="cursor-pointer" @click="openDiagram"/>
+      <i-lucide-chevrons-up-down class="cursor-pointer" @click="openDiagram" />
       <Modal ref="openDiagramModal">
-        <OpenDiagram @close="closeDiagram"/>
+        <OpenDiagram @close="closeDiagram" />
       </Modal>
     </div>
     <Tooltip content="New Diagram(ctrl+n)" position="bottom" class="group">
-      <i-tabler-file-plus class="cursor-pointer" />
+      <i-tabler-file-plus class="cursor-pointer" @click="newDiagram" />
     </Tooltip>
     <Tooltip content="Duplicate Diagram" position="bottom" class="group">
-      <i-tabler-files class="cursor-pointer" />
+      <i-tabler-files class="cursor-pointer" @click="duplicateDiagram" />
     </Tooltip>
     <Tooltip content="Add Table(t)" position="bottom" class="group">
-      <i-tabler-table-plus class="cursor-pointer" />
+      <i-tabler-table-plus class="cursor-pointer" @click="() => addTable()" />
     </Tooltip>
     <Tooltip content="Duplicate Table(ctrl+d)" position="bottom" class="group">
       <Icon :color="disable(selectedTable.length === 0)">
-        <i-tabler-table-alias class="cursor-pointer" @click="duplicateTable"/>
+        <i-tabler-table-alias class="cursor-pointer" @click="duplicateTable" />
       </Icon>
     </Tooltip>
-    <Tooltip content="Fullscreen" position="bottom" class="group">
+    <Tooltip content="Fullscreen(F11)" position="bottom" class="group">
       <i-tabler-arrows-maximize
         v-if="!fullscreen"
         class="cursor-pointer"
@@ -76,7 +74,11 @@
         />
       </Icon>
     </Tooltip>
-    <Tooltip :content="'Auto Save' + (settings.autoSave ? '(On)' : '(Off)')" position="bottom" class="group">
+    <Tooltip
+      :content="'Auto Save' + (settings.autoSave ? '(On)' : '(Off)')"
+      position="bottom"
+      class="group"
+    >
       <Icon :color="!settings.autoSave ? 'rgb(156 163 175)' : ''">
         <i-fluent-document-autosave-24-regular
           class="cursor-pointer"
@@ -84,7 +86,11 @@
         />
       </Icon>
     </Tooltip>
-    <Tooltip :content="settings.lock ? 'Unlock' : 'Lock'" position="bottom" class="group">
+    <Tooltip
+      :content="settings.lock ? 'Unlock' : 'Lock'"
+      position="bottom"
+      class="group"
+    >
       <i-lucide-lock-keyhole
         v-if="settings.lock"
         class="cursor-pointer"
@@ -140,22 +146,26 @@
 import Tooltip from "@/components/Tooltip.vue";
 import Export from "@/components/workspace/Export.vue";
 import History from "@/components/workspace/History.vue";
+import Logo from "@/components/Logo.vue";
 import useDiagram from "@/store/useDiagram";
 import useSetting from "@/store/useSettings";
 import useState from "@/store/useState";
 import useUndoRedo from "@/store/useUndoRedo";
 import { ref } from "vue";
 import { State, ExportFormat, ExportSourceFormat } from "@/constants/constants";
+import toSql from "@/utils/toSql";
 import { toPng, toJpeg, toSvg } from "html-to-image";
 import { saveAs } from "file-saver";
 import jsPDF from "jspdf";
 import { storeToRefs } from "pinia";
+import hotkeys from "hotkeys-js";
 
 const diagramStore = useDiagram();
 const { settings } = useSetting();
 const { state, selectedTable } = useState();
 const { undoStack, undo, redo, redoStack } = useUndoRedo();
-const { diagramName } = storeToRefs(diagramStore);
+const { diagramName, tables, relationships } = storeToRefs(diagramStore);
+const { addTable, newDiagram, duplicateDiagram } = diagramStore;
 const historyDrawer = ref();
 const exportDrawer = ref();
 const exportSourceDrawer = ref();
@@ -177,13 +187,14 @@ function openExportSource() {
 function duplicateTable() {
   if (selectedTable.length) {
     const { duplicateTable } = diagramStore;
-    duplicateTable(selectedTable)
+    duplicateTable(selectedTable);
   }
 }
 
 function openDiagram() {
   openDiagramModal.value.open();
 }
+
 function closeDiagram() {
   openDiagramModal.value.close();
 }
@@ -247,7 +258,13 @@ function exportFile(format) {
   }
 }
 
-function exportSource(format) {}
+function exportSource(format) {
+  const sql = toSql({ tables: tables.value, relationships: relationships.value }, format);
+  const blob = new Blob([sql], {
+    type: "text/sql",
+  });
+  saveAs(blob, `${diagramName.value}.sql`);
+}
 
 function disable(disable) {
   return disable ? "rgb(156 163 175)" : "";
@@ -279,25 +296,8 @@ function exitFullscreen() {
   }
   fullscreen.value = false;
 }
-</script>
-<style scoped>
-.gradient-text {
-  background: linear-gradient(
-    90deg,
-    #53cbef 0%,
-    #dcc66c 50%,
-    #ffa3b6 75%,
-    #53cbef 100%
-  );
-  //animation: slidernbw 5s linear infinite;
-  //color: #000;
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-}
 
-@keyframes slidernbw {
-  to {
-    background-position: 20vw;
-  }
-}
-</style>
+hotkeys("f11", enterFullscreen);
+hotkeys("ctrl+n", newDiagram);
+</script>
+

@@ -11,6 +11,7 @@ import {
   State,
   tableWidth,
 } from "@/constants/constants";
+import tableHeight from "@/utils/tableHeight";
 
 import { computed, onMounted, onUnmounted, ref, toRaw, watch } from "vue";
 import { debounce } from "lodash-es";
@@ -24,7 +25,13 @@ import Relationship from "@/components/workspace/Relationship.vue";
 
 const diagramStore = useDiagram();
 const { tables, relationships } = storeToRefs(diagramStore);
-const { addRelationship, addTable, removeTable, duplicateTable, removeRelationship } = diagramStore;
+const {
+  addRelationship,
+  addTable,
+  removeTable,
+  duplicateTable,
+  removeRelationship,
+} = diagramStore;
 const { transform } = useTransform();
 const { settings } = useSettings();
 const { state, selectedTable } = useState();
@@ -201,21 +208,21 @@ function drawGuideLines(table) {
     const ll = Math.abs(table.x - t.x);
     const tt = Math.abs(table.y - t.y);
     const rl = Math.abs(table.x + tableWidth - t.x);
-    const bt = Math.abs(table.y + table.getHeight(tableStyle.value) - t.y);
+    const bt = Math.abs(table.y + tableHeight(table, tableStyle.value) - t.y);
     const bb = Math.abs(
       table.y +
-        table.getHeight(tableStyle.value) -
+        tableHeight(table, tableStyle.value) -
         t.y -
-        t.getHeight(tableStyle.value),
+        tableHeight(t, tableStyle.value),
     );
     const lr = Math.abs(table.x - t.x - tableWidth);
-    const tb = Math.abs(table.y - t.y - t.getHeight(tableStyle.value));
+    const tb = Math.abs(table.y - t.y - tableHeight(t, tableStyle.value));
     const xc = Math.abs(table.x + tableWidth / 2 - t.x - tableWidth / 2);
     const yc = Math.abs(
       table.y +
-        table.getHeight(tableStyle.value) / 2 -
+        tableHeight(table, tableStyle.value) / 2 -
         t.y -
-        t.getHeight(tableStyle.value) / 2,
+        tableHeight(t, tableStyle.value) / 2,
     );
 
     if (ll <= guideOffset) {
@@ -236,16 +243,16 @@ function drawGuideLines(table) {
       table.y = t.y;
     } else if (bt <= guideOffset) {
       g.h = t.y;
-      table.y = t.y - table.getHeight(tableStyle.value);
+      table.y = t.y - tableHeight(table, tableStyle.value);
     } else if (bb <= guideOffset) {
-      g.h = t.y + t.getHeight(tableStyle.value);
-      table.y = g.h - table.getHeight(tableStyle.value);
+      g.h = t.y + tableHeight(t, tableStyle.value);
+      table.y = g.h - tableHeight(table, tableStyle.value);
     } else if (tb <= guideOffset) {
-      g.h = t.y + t.getHeight(tableStyle.value);
+      g.h = t.y + tableHeight(t, tableStyle.value);
       table.y = g.h;
     } else if (yc <= guideOffset) {
-      g.h = t.y + t.getHeight(tableStyle.value) / 2;
-      table.y = g.h - table.getHeight(tableStyle.value) / 2;
+      g.h = t.y + tableHeight(t, tableStyle.value) / 2;
+      table.y = g.h - tableHeight(table, tableStyle.value) / 2;
     }
   }
 
@@ -320,10 +327,10 @@ function onTableSelect(e, id) {
 function onRelationshipSelect(e, id) {
   selectedTable.length = 0;
   if (e.altKey || e.metaKey) {
-    selectedRelationship.value.push(id)
+    selectedRelationship.value.push(id);
   } else {
     selectedRelationship.value.length = 0;
-    selectedRelationship.value.push(id)
+    selectedRelationship.value.push(id);
   }
 }
 
@@ -400,8 +407,9 @@ function zoomToFit() {
   const minY = Math.min(...tables.value.map((t) => t.y)) - 50;
   const maxX = Math.max(...tables.value.map((t) => t.x + tableWidth)) + 50;
   const maxY =
-    Math.max(...tables.value.map((t) => t.y + t.getHeight(tableStyle.value))) +
-    50;
+    Math.max(
+      ...tables.value.map((t) => t.y + tableHeight(t, tableStyle.value)),
+    ) + 50;
   const width = maxX - minX;
   const height = maxY - minY;
   const zoomX = rectWidth / width;
@@ -483,7 +491,11 @@ function wheel(e) {
             :tableStyle="tableStyle"
             v-model="relationships[i]"
             @click="onRelationshipSelect"
-            :class="selectedRelationship.includes(r.id) ? 'stroke-sky-700 stroke-[3px]' : ''"
+            :class="
+              selectedRelationship.includes(r.id)
+                ? 'stroke-sky-700 stroke-[3px]'
+                : ''
+            "
           />
         </g>
         <Table
@@ -496,7 +508,7 @@ function wheel(e) {
           @connectstart="onLinkingStart"
           @click.stop="onTableSelect($event, table.id)"
           @edit="onTableEdit"
-          :class="[
+          :class="['group/table',
             selectedTable.includes(table.id)
               ? 'ring-2 ring-offset-2 ring-blue-500'
               : 'ring-1 ring-neutral-800',

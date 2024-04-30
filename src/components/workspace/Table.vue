@@ -7,11 +7,12 @@ import {
 } from "@/constants/constants";
 import { defineAsyncComponent } from "vue";
 import useSettings from "@/store/useSettings";
+import tableHeight from "@/utils/tableHeight";
 
 const Palette = defineAsyncComponent(
   () => import("@/components/workspace/Palette.vue"),
 );
-defineEmits([
+const emit = defineEmits([
   "dragstart",
   "connectstart",
   "fieldenter",
@@ -26,6 +27,10 @@ defineProps({
 });
 const table = defineModel();
 const { settings } = useSettings();
+
+function onDragStart(event, id) {
+  emit("dragstart", event, id, ObjectType.TABLE);
+}
 </script>
 
 <template>
@@ -34,14 +39,15 @@ const { settings } = useSettings();
     :x="table.x"
     :y="table.y"
     :width="tableWidth"
-    :height="table.getHeight(tableStyle)"
+    :height="tableHeight(table, tableStyle)"
     :class="['rounded-md', settings.lock ? '' : 'cursor-move']"
-    @mousedown="$emit('dragstart', $event, table.id, ObjectType.TABLE)"
+    @mousedown="onDragStart($event, table.id)"
+    @touchstart="onDragStart($event, table.id)"
     @dblclick="$emit('dblclick', $event, table)"
   >
     <div class="w-full select-none bg-white">
       <div
-        class="group w-full flex justify-between items-center text-center px-2"
+        class="flex w-full items-center justify-between px-2 text-center"
         :style="{ height: tableFieldHeight + 'px', background: table.color }"
       >
         <span class="text-white">{{ table.name }}</span>
@@ -49,7 +55,7 @@ const { settings } = useSettings();
           <Icon size="18" color="white">
             <i-tabler-edit
               @click="$emit('edit', $event, table)"
-              class="cursor-pointer hidden group-hover:block"
+              class="hidden cursor-pointer group-hover/table:block"
             />
           </Icon>
           <Palette :table="table" />
@@ -62,7 +68,7 @@ const { settings } = useSettings();
             tableStyle === ShowTableStyle.COMMENT ||
             (tableStyle === ShowTableStyle.KEYS_ONLY && field.pk)
           "
-          class="hover:bg-gray-200 bg-gray-100 flex items-center px-2 justify-between border-t border-t-zinc-900"
+          class="flex items-center justify-between border-t border-t-zinc-900 bg-gray-100 px-2 hover:bg-gray-200"
           :key="field.id"
           :style="{ height: tableFieldHeight + 'px' }"
           @mouseenter="
@@ -111,9 +117,7 @@ const { settings } = useSettings();
               "
             >
               <span
-                :class="[
-                  'inline-block ml-1.5 text-ellipsis max-w-[100px]',
-                ]"
+                :class="['inline-block ml-1.5 text-ellipsis max-w-[100px]']"
                 >{{
                   tableStyle === ShowTableStyle.COMMENT
                     ? field.comment || field.name
@@ -128,7 +132,9 @@ const { settings } = useSettings();
               class="ml-1 inline-block"
             />
           </div>
-          <div class="uppercase text-xs font-bold text-gray-700">{{ field.type }}</div>
+          <div class="text-xs font-bold uppercase text-gray-700">
+            {{ field.type }}
+          </div>
         </div>
       </template>
     </div>
